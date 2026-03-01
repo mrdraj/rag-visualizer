@@ -1,209 +1,327 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>RAG Visualizer</title>
-<style>
-body {
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
-  margin: 0;
-  padding: 20px;
-}
-h1 { margin-bottom: 10px; }
-.container { max-width: 1100px; margin: auto; }
-.card {
-  background: #1e293b;
-  padding: 16px;
-  margin-bottom: 16px;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-}
-button {
-  background: #3b82f6;
-  border: none;
-  padding: 8px 14px;
-  border-radius: 8px;
-  color: white;
-  cursor: pointer;
-  margin-top: 8px;
-}
-button:disabled { opacity: 0.4; cursor: not-allowed; }
-input, textarea, select {
-  width: 100%;
-  padding: 8px;
-  margin-top: 6px;
-  margin-bottom: 6px;
-  border-radius: 6px;
-  border: none;
-}
-.progress {
-  height: 8px;
-  background: #334155;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 20px;
-}
-.progress-bar {
-  height: 100%;
-  width: 0%;
-  background: #3b82f6;
-  transition: 0.4s;
-}
-.chunk, .vector {
-  background: #334155;
-  padding: 8px;
-  border-radius: 6px;
-  margin: 6px 0;
-  font-size: 13px;
-}
-.small { font-size: 12px; opacity: 0.7; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Pipeline Visualizer</title>
+    <style>
+        :root {
+            --primary: #0f172a;
+            --accent: #2563eb;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --border: #e2e8f0;
+            --text: #334155;
+            --text-light: #64748b;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1, h2, h3 { color: var(--primary); margin-top: 0; }
+        
+        .step-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .step-card.hidden {
+            display: none;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+
+        label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem; color: var(--primary); }
+        
+        textarea, input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: inherit;
+            box-sizing: border-box;
+            margin-bottom: 1rem;
+        }
+        
+        textarea { resize: vertical; min-height: 120px; }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        button:hover { background-color: #1d4ed8; }
+        button:disabled { background-color: #94a3b8; cursor: not-allowed; }
+
+        .chunk-box {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 6px 6px 0;
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .vector-rep {
+            font-family: monospace;
+            background: #e2e8f0;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            color: #0f172a;
+            font-size: 0.75rem;
+            display: block;
+            margin-top: 0.5rem;
+            word-break: break-all;
+        }
+
+        pre {
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            font-size: 0.875rem;
+        }
+
+        .progress-text {
+            font-size: 0.875rem;
+            color: var(--text-light);
+            margin-top: 0.5rem;
+            font-style: italic;
+        }
+
+        .badge {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+    </style>
 </head>
 <body>
-<div class="container">
-<h1>Interactive RAG Visualizer</h1>
-<div class="progress"><div class="progress-bar" id="progress"></div></div>
 
-<div class="card">
-<h3>1️⃣ Chunk Text</h3>
-<textarea id="inputText" rows="4" placeholder="Enter text..."></textarea>
-<label>Chunk Size</label>
-<input type="number" id="chunkSize" value="40">
-<label>Sliding Window</label>
-<input type="number" id="slideSize" value="20">
-<button onclick="chunkText()">Chunk</button>
-<div id="chunks"></div>
-</div>
+    <h1>RAG Interactive Visualizer</h1>
+    <p style="color: var(--text-light); margin-bottom: 2rem;">A client-side simulation demonstrating the mechanics of Retrieval-Augmented Generation.</p>
 
-<div class="card">
-<h3>2️⃣ Create Vector Embeddings</h3>
-<button onclick="createEmbeddings()" id="embedBtn" disabled>Create Embeddings</button>
-<div id="vectors"></div>
-</div>
+    <div id="step-1" class="step-card">
+        <h3>1. Data Ingestion & Chunking</h3>
+        <textarea id="source-text" placeholder="Enter your source text here. For example, paste an article about Artificial Intelligence or the solar system.">Retrieval-Augmented Generation (RAG) is an AI framework. It improves the quality of LLM responses by grounding the model on external sources of knowledge. RAG involves two main phases: retrieval and content generation. In the retrieval phase, algorithms search for and retrieve information relevant to the user's prompt. In the generation phase, the LLM uses the retrieved information to formulate a grounded response. This reduces hallucinations.</textarea>
+        
+        <div class="grid-2">
+            <div>
+                <label>Chunk Size (Words)</label>
+                <input type="number" id="chunk-size" value="15" min="1">
+            </div>
+            <div>
+                <label>Sliding Window Overlap (Words)</label>
+                <input type="number" id="chunk-overlap" value="3" min="0">
+            </div>
+        </div>
+        <button onclick="handleChunking()">Generate Chunks</button>
+        <div id="prog-1" class="progress-text"></div>
+    </div>
 
-<div class="card">
-<h3>3️⃣ Save Vectors</h3>
-<button onclick="saveVectors()" id="saveBtn" disabled>Save to LocalStorage</button>
-<div class="small" id="saveStatus"></div>
-</div>
+    <div id="step-2" class="step-card hidden">
+        <h3>2. Generated Chunks</h3>
+        <div id="chunks-container"></div>
+        <button onclick="handleEmbedding()">Create Vector Embeddings</button>
+        <div id="prog-2" class="progress-text"></div>
+    </div>
 
-<div class="card">
-<h3>4️⃣ Ask Query</h3>
-<textarea id="queryText" rows="2" placeholder="Enter your query..."></textarea>
-<label>Top N Chunks</label>
-<input type="number" id="topN" value="2">
-<button onclick="askQuery()">Ask</button>
-<div id="retrieved"></div>
-</div>
+    <div id="step-3" class="step-card hidden">
+        <h3>3. Vector Embeddings</h3>
+        <p class="progress-text">Note: Real RAG uses dense neural embeddings (e.g., 1536 dimensions). This visualizer uses a Term-Frequency vectorizer for frontend processing.</p>
+        <div id="vectors-container"></div>
+        <button onclick="handleSave()">Save Vectors to Local Storage</button>
+        <div id="prog-3" class="progress-text"></div>
+    </div>
 
-<div class="card">
-<h3>5️⃣ Prompt Preview</h3>
-<div id="promptPreview" class="chunk"></div>
-</div>
+    <div id="step-4" class="step-card hidden">
+        <h3>4. Query the System</h3>
+        <p class="progress-text" id="storage-status"></p>
+        <label>User Query</label>
+        <input type="text" id="user-query" placeholder="e.g., What are the two main phases of RAG?">
+        
+        <label>Retrieve Top N Chunks</label>
+        <input type="number" id="top-n" value="2" min="1" max="10">
+        
+        <button onclick="handleSearch()">Ask LLM</button>
+    </div>
 
-<div class="card">
-<h3>6️⃣ LLM Answer (Simulated)</h3>
-<div id="llmAnswer" class="chunk"></div>
-</div>
+    <div id="step-5" class="step-card hidden">
+        <h3>5. Retrieved Context (Top N)</h3>
+        <div id="retrieval-container"></div>
+    </div>
 
-</div>
+    <div id="step-6" class="step-card hidden">
+        <h3>6. Constructed System Prompt</h3>
+        <pre id="system-prompt"></pre>
+    </div>
 
-<script>
-let chunks = [];
-let embeddings = [];
+    <div id="step-7" class="step-card hidden">
+        <h3>7. LLM Generation</h3>
+        <div id="llm-output" class="chunk-box" style="border-color: #10b981; background: #ecfdf5;"></div>
+    </div>
 
-function updateProgress(percent){
-  document.getElementById("progress").style.width = percent + "%";
-}
+    <script>
+        // State
+        const state = {
+            text: "",
+            chunks: [],
+            vocab: [],
+            vectors: [],
+            topNChunks: []
+        };
 
-function chunkText(){
-  const text = document.getElementById("inputText").value;
-  const size = parseInt(document.getElementById("chunkSize").value);
-  const slide = parseInt(document.getElementById("slideSize").value);
-  chunks = [];
-  for(let i=0;i<text.length;i+=slide){
-    chunks.push(text.slice(i,i+size));
-  }
-  const container = document.getElementById("chunks");
-  container.innerHTML="";
-  chunks.forEach((c,i)=>{
-    container.innerHTML += `<div class="chunk"><b>Chunk ${i+1}</b>: ${c}</div>`;
-  });
-  document.getElementById("embedBtn").disabled=false;
-  updateProgress(20);
-}
+        // Utility: TF Vectorizer
+        function buildVocab(chunks) {
+            const allWords = chunks.join(" ").toLowerCase().split(/\s+/).map(w => w.replace(/[^\w]/g, ''));
+            state.vocab = [...new Set(allWords)].filter(w => w.length > 0);
+        }
 
-function simpleEmbedding(text){
-  const vector = new Array(10).fill(0);
-  for(let i=0;i<text.length;i++){
-    vector[i%10]+=text.charCodeAt(i);
-  }
-  return vector;
-}
+        function getVector(text) {
+            const words = text.toLowerCase().split(/\s+/).map(w => w.replace(/[^\w]/g, ''));
+            return state.vocab.map(vw => words.filter(w => w === vw).length);
+        }
 
-function createEmbeddings(){
-  embeddings = chunks.map(c=>simpleEmbedding(c));
-  const container = document.getElementById("vectors");
-  container.innerHTML="";
-  embeddings.forEach((v,i)=>{
-    container.innerHTML += `<div class="vector"><b>Chunk ${i+1}</b>: [${v.join(", ")}]</div>`;
-  });
-  document.getElementById("saveBtn").disabled=false;
-  updateProgress(40);
-}
+        function calculateCosineSimilarity(vec1, vec2) {
+            let dot = 0, mag1 = 0, mag2 = 0;
+            for(let i = 0; i < vec1.length; i++) {
+                dot += vec1[i] * vec2[i];
+                mag1 += vec1[i] * vec1[i];
+                mag2 += vec2[i] * vec2[i];
+            }
+            mag1 = Math.sqrt(mag1);
+            mag2 = Math.sqrt(mag2);
+            if (mag1 === 0 || mag2 === 0) return 0;
+            return dot / (mag1 * mag2);
+        }
 
-function saveVectors(){
-  localStorage.setItem("rag_chunks", JSON.stringify(chunks));
-  localStorage.setItem("rag_vectors", JSON.stringify(embeddings));
-  document.getElementById("saveStatus").innerText="Saved successfully!";
-  updateProgress(60);
-}
+        // Handlers
+        function handleChunking() {
+            const text = document.getElementById('source-text').value;
+            const size = parseInt(document.getElementById('chunk-size').value);
+            const overlap = parseInt(document.getElementById('chunk-overlap').value);
+            
+            const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+            state.chunks = [];
+            
+            if (words.length === 0 || size <= 0) return;
+            const step = Math.max(1, size - overlap);
 
-function cosineSim(a,b){
-  let dot=0, normA=0, normB=0;
-  for(let i=0;i<a.length;i++){
-    dot+=a[i]*b[i];
-    normA+=a[i]*a[i];
-    normB+=b[i]*b[i];
-  }
-  return dot/(Math.sqrt(normA)*Math.sqrt(normB));
-}
+            for (let i = 0; i < words.length; i += step) {
+                state.chunks.push(words.slice(i, i + size).join(" "));
+                if (i + size >= words.length) break;
+            }
 
-function askQuery(){
-  const query = document.getElementById("queryText").value;
-  const topN = parseInt(document.getElementById("topN").value);
+            const container = document.getElementById('chunks-container');
+            container.innerHTML = state.chunks.map((c, i) => 
+                `<div class="chunk-box"><strong>Chunk ${i+1}:</strong> ${c}</div>`
+            ).join('');
 
-  const storedChunks = JSON.parse(localStorage.getItem("rag_chunks")||"[]");
-  const storedVectors = JSON.parse(localStorage.getItem("rag_vectors")||"[]");
+            document.getElementById('prog-1').innerText = `Created ${state.chunks.length} chunks.`;
+            document.getElementById('step-2').classList.remove('hidden');
+        }
 
-  const queryVec = simpleEmbedding(query);
+        function handleEmbedding() {
+            document.getElementById('prog-2').innerText = "Generating vocabulary and TF vectors...";
+            
+            setTimeout(() => {
+                buildVocab(state.chunks);
+                state.vectors = state.chunks.map(chunk => getVector(chunk));
 
-  let scores = storedVectors.map((vec,i)=>({
-    index:i,
-    score:cosineSim(queryVec,vec)
-  }));
+                const container = document.getElementById('vectors-container');
+                container.innerHTML = state.chunks.map((c, i) => {
+                    const vec = state.vectors[i];
+                    const displayVec = vec.slice(0, 8).join(', ') + (vec.length > 8 ? '...' : '');
+                    return `<div class="chunk-box">
+                                <strong>Chunk ${i+1}</strong>
+                                <span class="vector-rep">[${displayVec}] (Dimensions: ${vec.length})</span>
+                            </div>`;
+                }).join('');
 
-  scores.sort((a,b)=>b.score-a.score);
+                document.getElementById('prog-2').innerText = "Embeddings created successfully.";
+                document.getElementById('step-3').classList.remove('hidden');
+            }, 300);
+        }
 
-  const topChunks = scores.slice(0,topN).map(s=>storedChunks[s.index]);
+        function handleSave() {
+            const data = { chunks: state.chunks, vectors: state.vectors, vocab: state.vocab };
+            localStorage.setItem('rag_demo_data', JSON.stringify(data));
+            
+            document.getElementById('prog-3').innerText = "Saved to local storage.";
+            document.getElementById('storage-status').innerText = "Data loaded from local storage.";
+            document.getElementById('step-4').classList.remove('hidden');
+        }
 
-  const retrievedDiv = document.getElementById("retrieved");
-  retrievedDiv.innerHTML="";
-  topChunks.forEach((c,i)=>{
-    retrievedDiv.innerHTML+=`<div class="chunk"><b>Match ${i+1}</b>: ${c}</div>`;
-  });
+        function handleSearch() {
+            const query = document.getElementById('user-query').value;
+            const topN = parseInt(document.getElementById('top-n').value);
 
-  const prompt = `Answer the user's query based on given content.\n\nQuery: "${query}"\n\nContext:\n${topChunks.join("\n")}`;
-  document.getElementById("promptPreview").innerText = prompt;
+            if (!query) return;
 
-  // Simulated LLM response
-  document.getElementById("llmAnswer").innerText =
-    "Simulated LLM Answer:\n\nBased on the retrieved context, the answer relates to the most relevant chunks shown above.";
+            // Retrieve
+            const queryVec = getVector(query);
+            const scoredChunks = state.chunks.map((chunk, i) => {
+                return { chunk, score: calculateCosineSimilarity(queryVec, state.vectors[i]) };
+            }).sort((a, b) => b.score - a.score);
 
-  updateProgress(100);
-}
-</script>
+            state.topNChunks = scoredChunks.slice(0, topN);
+
+            // Update UI - Step 5
+            document.getElementById('step-5').classList.remove('hidden');
+            document.getElementById('retrieval-container').innerHTML = state.topNChunks.map((c, i) =>
+                `<div class="chunk-box">
+                    <span class="badge">Similarity Score: ${c.score.toFixed(3)}</span><br><br>
+                    ${c.chunk}
+                </div>`
+            ).join('');
+
+            // Update UI - Step 6
+            document.getElementById('step-6').classList.remove('hidden');
+            const promptText = `System Instructions: Answer the following user query based ONLY on the given context. If the answer is not in the context, say "I don't know."\n\nContext:\n${state.topNChunks.map((c,i) => `[Chunk ${i+1}] ${c.chunk}`).join('\n')}\n\nUser Query: "${query}"`;
+            document.getElementById('system-prompt').textContent = promptText;
+
+            // Update UI - Step 7
+            document.getElementById('step-7').classList.remove('hidden');
+            const llmOut = document.getElementById('llm-output');
+            llmOut.innerHTML = `<em>Simulating LLM generation...</em>`;
+
+            setTimeout(() => {
+                if(state.topNChunks[0].score === 0) {
+                    llmOut.innerHTML = `Based on the provided context, I cannot answer the query because the provided context does not contain relevant information.`;
+                } else {
+                    llmOut.innerHTML = `<strong>Simulated Response:</strong> Based on the context provided, ${state.topNChunks[0].chunk}`;
+                }
+            }, 1200);
+        }
+    </script>
 </body>
 </html>
